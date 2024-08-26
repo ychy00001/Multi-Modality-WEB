@@ -125,9 +125,12 @@ result.png
 result.jpg
 result.mp4
 output/
+upload
 *.out
 
 # Pytorch
 *.pth
 *.pt
+
+
 

@@ -5,8 +5,6 @@
 import os
 import numpy as np
 from urllib3.exceptions import HTTPError
-os.system('pip install dashscope  modelscope -U')
-os.system('pip install gradio==3.*')
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 from argparse import ArgumentParser
@@ -24,16 +22,17 @@ import tempfile
 import base64
 import requests
 from http import HTTPStatus
-from dashscope import MultiModalConversation
-import dashscope
-API_KEY = "EMPTY"
-dashscope.api_key = API_KEY
 
+from config import VLLM_ENDPOINT
+from utils import minio_util
+
+API_KEY = "EMPTY"
 
 DEFAULT_CKPT_PATH = 'qwen/Qwen-VL-Chat'
 REVISION = 'v1.0.4'
 BOX_TAG_PATTERN = r"<box>([\s\S]*?)</box>"
 PUNCTUATION = "！？。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏."
+
 
 class Logger:
     def __init__(self, filename):
@@ -51,25 +50,30 @@ class Logger:
     def isatty(self):
         return False
 
+
 sys.stdout = Logger("output.log")
+
 
 def test(x):
     print("This is a test")
     print(f"Your function is running with input {x}...")
     return x
 
+
 def read_logs():
     sys.stdout.flush()
     with open("output.log", "r") as f:
         return f.read()
 
+
 def _get_args():
     parser = ArgumentParser()
-    #parser.add_argument("-c", "--checkpoint-path", type=str, #default=DEFAULT_CKPT_PATH,
+    # parser.add_argument("-c", "--checkpoint-path", type=str, #default=DEFAULT_CKPT_PATH,
     #                    help="Checkpoint name or path, #default to %(default)r")
-    #parser.add_argument("--revision", type=str, #default=REVISION)
-    #parser.add_argument("--cpu-only", action="store_true", #help="Run demo with CPU only")
-
+    # parser.add_argument("--revision", type=str, #default=REVISION)
+    # parser.add_argument("--cpu-only", action="store_true", #help="Run demo with CPU only")
+    parser.add_argument("--prod", action="store_true", default=False,
+                        help="tart prod.")
     parser.add_argument("--share", action="store_true", default=False,
                         help="Create a publicly shareable link for the interface.")
     parser.add_argument("--inbrowser", action="store_true", default=False,
@@ -81,6 +85,7 @@ def _get_args():
 
     args = parser.parse_args()
     return args
+
 
 def image_to_base64(image_path):
     # 打开图像文件并读取其二进制内容
@@ -95,6 +100,11 @@ def image_to_base64(image_path):
     base64_string = base64_data.decode('utf-8')
 
     return base64_string
+
+
+def image_to_url(image_path):
+    return minio_util.fput_file("inference", image_path)
+
 
 def _parse_text(text):
     lines = text.split("\n")
@@ -128,29 +138,19 @@ def _parse_text(text):
     return text
 
 
-"""
-('/tmp/gradio/1837abb0176495ff182050801ebff1fa9b18fc4a/aiyinsitan.jpg',),
-  None],
- ['这是谁？',
-  '图中是爱因斯坦，阿尔伯特·爱因斯坦（Albert '
-  'Einstein），是出生于德国、拥有瑞士和美国国籍的犹太裔理论物理学家，他创立了现代物理学的两大支柱的相对论及量子力学。'],
- ['框处里面的人', '图中框内是爱因斯坦的半身照，照片中爱因斯坦穿着一件西装，留着标志性的胡子和蜷曲的头发。'],
- ['框出里面的人',
-  ('/tmp/gradio/71cf5c2551009fd9a00e0d80bc7ab7fb8de211b5/tmp115aba5d70.jpg',)],
- [None, '里面的人'],
- ('介绍一下',
-  '阿尔伯特·爱因斯坦（Albert '
-  'Einstein），是出生于德国、拥有瑞士和美国国籍的犹太裔理论物理学家，他创立了现代物理学的两大支柱的相对论及量子力学。他的贡献包括他提出的相对论（尤其是狭义相对论和广义相对论）、量子力学的开创性贡献以及他对于 '
-  'gravity 的贡献。爱因斯坦也是诺贝尔奖得主以及美国公民。')]
-"""
-
 def _remove_image_special(text):
     text = text.replace('<ref>', '').replace('</ref>', '')
     return re.sub(r'<box>.*?(</box>|$)', '', text)
 
+
 def send_request(messages):
-    url = "http://172.17.0.1:41176/v1/chat/completions"
+    url = VLLM_ENDPOINT + "/v1/chat/completions"
+    print("request_url:" + url)
     headers = {
+        'User-Agent': 'python-requests/2.31.0',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept': '*/*',
+        'Connection': 'keep-alive',
         'Content-Type': 'application/json',
     }
     data = {
@@ -183,126 +183,120 @@ def send_request(messages):
         print(f"Request failed with status code {response.status_code}")
         return "连接异常，请重试！"
 
-def _launch_demo(args):
-    uploaded_file_dir = os.environ.get("GRADIO_TEMP_DIR") or str(
-        Path(tempfile.gettempdir()) / "gradio"
-    )
 
-    def predict(_chatbot, task_history):
-        chat_query = _chatbot[-1][0]
-        query = task_history[-1][0]
+def _launch_chat(args):
+    uploaded_file_dir = os.environ.get("GRADIO_TEMP_DIR") or "./upload"
+
+    def predict(_chatbot1, _chatbot2, task_history1, task_history2):
+        print(_chatbot1)
+        print(_chatbot2)
+        chat_query = _chatbot1[-1][0]
+        query = task_history1[-1][0]
         if len(chat_query) == 0:
-            _chatbot.pop()
-            task_history.pop()
-            return _chatbot
+            _chatbot1.pop()
+            task_history1.pop()
+            return _chatbot1, _chatbot2
         print("User: " + _parse_text(query))
-        history_cp = copy.deepcopy(task_history)
+        history_cp = copy.deepcopy(task_history1)
         full_response = ""
         messages = []
         content = []
         for q, a in history_cp:
             if isinstance(q, (tuple, list)):
-                #content.append({
-                #    'type': "image_url",
-                #    'image_url': {
-                #        'url': image_to_base64(q[0])
-                #    }
-                #})
+                print("发送消息图片：" + image_to_url(q[0]))
                 content.append({
                     'type': "image_url",
                     'image_url': {
-                        'url': "https://n.sinaimg.cn/sinakd20116/96/w2048h2048/20240323/24a7-52a54c327350fe430e27f8b5847a0bf5.jpg"
+                        'url': image_to_url(q[0])
                     }
                 })
+                # content.append({
+                #     'type': "image_url",
+                #     'image_url': {
+                #         'url': "https://n.sinaimg.cn/sinakd20116/96/w2048h2048/20240323/24a7-52a54c327350fe430e27f8b5847a0bf5.jpg"
+                #     }
+                # })
             else:
                 content.append({
                     'type': "text",
                     'text': q
                 })
                 messages.append({'role': 'user', 'content': content})
-                messages.append({'role': 'assistant', 'content': [{'type':'text','text': a}]})
+                messages.append({'role': 'assistant', 'content': [{'type': 'text', 'text': a}]})
                 content = []
         messages.pop()
         print(messages)
 
         response_text = send_request(messages)
-        print("AAAAAA"+response_text)
         print(response_text)
-        
-        _chatbot[-1] = (_parse_text(chat_query), _remove_image_special(response_text))
+
+        _chatbot1[-1] = (_parse_text(chat_query), _remove_image_special(response_text))
 
         response = response_text
-        _chatbot[-1] = (_parse_text(chat_query), response)
+        _chatbot1[-1] = (_parse_text(chat_query), response)
         full_response = _parse_text(response)
 
-        task_history[-1] = (query, full_response)
-        print("Qwen-VL-Chat: " + _parse_text(full_response))
+        task_history1[-1] = (query, full_response)
+        print("Model Response: " + _parse_text(full_response))
         # task_history = task_history[-10:]
-        yield _chatbot
+        yield _chatbot1, _chatbot2
 
-    def regenerate(_chatbot, task_history):
-        if not task_history:
-            return _chatbot
-        item = task_history[-1]
+    def regenerate(_chatbot1, _chatbot2, task_history1, task_history2):
+        if not task_history1:
+            return _chatbot1, _chatbot2
+        item = task_history1[-1]
         if item[1] is None:
-            return _chatbot
-        task_history[-1] = (item[0], None)
-        chatbot_item = _chatbot.pop(-1)
+            return _chatbot1
+        task_history1[-1] = (item[0], None)
+        chatbot_item = _chatbot1.pop(-1)
         if chatbot_item[0] is None:
-            _chatbot[-1] = (_chatbot[-1][0], None)
+            _chatbot1[-1] = (_chatbot1[-1][0], None)
         else:
-            _chatbot.append((chatbot_item[0], None))
-        return predict(_chatbot, task_history)
+            _chatbot1.append((chatbot_item[0], None))
+        return predict(_chatbot1, _chatbot2, task_history1, task_history2)
 
-    def add_text(history, task_history, text):
-        task_text = text
-        history = history if history is not None else []
-        task_history = task_history if task_history is not None else []
-        history = history + [(_parse_text(text), None)]
-        task_history = task_history + [(task_text, None)]
-        return history, task_history, ""
+    def add_text(history1, history2, task_history1, task_history2, text1, text2):
+        task_text1 = text1
+        task_text2 = text2
+        history1 = history1 if history1 is not None else []
+        history2 = history2 if history2 is not None else []
+        task_history1 = task_history1 if task_history1 is not None else []
+        task_history2 = task_history2 if task_history2 is not None else []
+        history1 = history1 + [(_parse_text(text1), None)]
+        history2 = history2 + [(_parse_text(text2), None)]
+        task_history1 = task_history1 + [(task_text1, None)]
+        task_history2 = task_history2 + [(task_text2, None)]
+        return history1, history2, task_history1, task_history2, "", ""
 
-    def add_file(history, task_history, file):
-        history = history if history is not None else []
-        task_history = task_history if task_history is not None else []
-        history = history + [((file.name,), None)]
-        task_history = task_history + [((file.name,), None)]
-        return history, task_history
+    def add_file(history1, history2, task_history1, task_history2, file1, file2):
+        history1 = history1 if history1 is not None else []
+        history2 = history2 if history2 is not None else []
+        task_history1 = task_history1 if task_history1 is not None else []
+        task_history2 = task_history2 if task_history2 is not None else []
+        history1 = history1 + [((file1.name,), None)]
+        history2 = history2 + [((file2.name,), None)]
+        task_history1 = task_history1 + [((file1.name,), None)]
+        task_history2 = task_history2 + [((file2.name,), None)]
+        return history1, history2, task_history1, task_history2
 
     def reset_user_input():
         return gr.update(value="")
 
-    def reset_state(task_history):
-        task_history.clear()
+    def reset_state(task_history1, task_history2):
+        task_history1.clear()
+        task_history2.clear()
         return []
 
-    with gr.Blocks() as demo:
-        gr.Markdown("""\
-<p align="center"><img src="https://modelscope.oss-cn-beijing.aliyuncs.com/resource/qwen.png" style="height: 80px"/><p>""")
-        gr.Markdown("""<center><font size=8>Qwen-VL-Plus</center>""")
-        gr.Markdown(
-            """\
-<center><font size=3>This WebUI is based on Qwen-VL-Plus, the upgraded version of Qwen-VL, developed by Alibaba Cloud.</center>""")
-        gr.Markdown("""<center><font size=3>本WebUI基于Qwen-VL-Plus打造，这是Qwen-VL的升级版。</center>""")
-        gr.Markdown("""\
-<center><font size=4> \
-<a href="https://github.com/QwenLM/Qwen-VL#qwen-vl-plus">Github</a>&nbsp ｜ &nbsp
-Qwen-VL <a href="https://modelscope.cn/models/qwen/Qwen-VL/summary">🤖 </a> 
-| <a href="https://huggingface.co/Qwen/Qwen-VL">🤗</a>&nbsp ｜ 
-Qwen-VL-Chat <a href="https://modelscope.cn/models/qwen/Qwen-VL-Chat/summary">🤖 </a> | 
-<a href="https://huggingface.co/Qwen/Qwen-VL-Chat">🤗</a>&nbsp ｜
-Qwen-VL-Plus 
-<a href="https://huggingface.co/spaces/Qwen/Qwen-VL-Plus">🤗</a>&nbsp
-<a href="https://modelscope.cn/studios/qwen/Qwen-VL-Chat-Demo/summary">🤖 </a>&nbsp ｜
-Qwen-VL-Max 
-<a href="https://huggingface.co/spaces/Qwen/Qwen-VL-Max">🤗</a>&nbsp
-<a href="https://modelscope.cn/studios/qwen/Qwen-VL-Max/summary">🤖 </a>&nbsp ｜ 
-<a href="https://qianwen.aliyun.com">Web</a> |
-<a href="https://help.aliyun.com/zh/dashscope/developer-reference/vl-plus-quick-start/">API</a></center>""")
+    with gr.Blocks() as chat_block:
+        gr.Markdown("""<center><font size=8>模型效果测试</center>""")
+        gr.Markdown("""<center><font size=3>本WebUI基于Gradio打造，可进行多模态大模型效果测试。</center>""")
 
-        chatbot = gr.Chatbot(label='Qwen-VL-Plus', elem_classes="control-height", height=500)
+        with gr.Row():
+            chatbot1 = gr.Chatbot(label='Modal1', elem_classes="control-height", height=500)
+            chatbot2 = gr.Chatbot(label='Modal2', elem_classes="control-height", height=500)
         query = gr.Textbox(lines=1, label='Input')
-        task_history = gr.State([])
+        task_history1 = gr.State([])
+        task_history2 = gr.State([])
 
         with gr.Row():
             addfile_btn = gr.UploadButton("📁 Upload (上传文件)", file_types=["image"])
@@ -310,17 +304,22 @@ Qwen-VL-Max
             regen_btn = gr.Button("🤔️ Regenerate (重试)")
             empty_bin = gr.Button("🧹 Clear History (清除历史)")
 
-        query.submit(add_text, [chatbot, task_history, query], [chatbot, task_history]).then(
-            predict, [chatbot, task_history], [chatbot], show_progress=True
+        query.submit(add_text, [chatbot1, chatbot2, task_history1, task_history2, query, query],
+                     [chatbot1, chatbot2, task_history1, task_history2]).then(
+            predict, [chatbot1, chatbot2, task_history1, task_history2], [chatbot1, chatbot2], show_progress=True
         )
         query.submit(reset_user_input, [], [query])
-        submit_btn.click(add_text, [chatbot, task_history, query], [chatbot, task_history]).then(
-            predict, [chatbot, task_history], [chatbot], show_progress=True
+        submit_btn.click(add_text, [chatbot1, chatbot2, task_history1, task_history2, query, query],
+                         [chatbot1, chatbot2, task_history1, task_history2]).then(
+            predict, [chatbot1, chatbot2, task_history1, task_history2], [chatbot1, chatbot2], show_progress=True
         )
         submit_btn.click(reset_user_input, [], [query])
-        empty_bin.click(reset_state, [task_history], [chatbot], show_progress=True)
-        regen_btn.click(regenerate, [chatbot, task_history], [chatbot], show_progress=True)
-        addfile_btn.upload(add_file, [chatbot, task_history, addfile_btn], [chatbot, task_history], show_progress=True)
+        empty_bin.click(reset_state, [task_history1, task_history2], [chatbot1, chatbot2], show_progress=True)
+        regen_btn.click(regenerate, [chatbot1, chatbot2, task_history1, task_history2], [chatbot1, chatbot2],
+                        show_progress=True)
+        addfile_btn.upload(add_file, [chatbot1, chatbot2, task_history1, task_history2, addfile_btn, addfile_btn],
+                           [chatbot1, chatbot2, task_history1, task_history2],
+                           show_progress=True)
 
         gr.Markdown("""\
 <font size=2>Note: This demo is governed by the original license of Qwen-VL. \
@@ -334,9 +333,9 @@ including hate speech, violence, pornography, deception, etc. \
         btn = gr.Button("Run")
         btn.click(test, input, output)
         logs = gr.Textbox()
-        demo.load(read_logs, None, logs, every=1)
+        chat_block.load(read_logs, None, logs, every=1)
 
-    demo.queue().launch(
+    chat_block.queue().launch(
         share=args.share,
         inbrowser=args.inbrowser,
         server_port=args.server_port,
@@ -346,7 +345,7 @@ including hate speech, violence, pornography, deception, etc. \
 
 def main():
     args = _get_args()
-    _launch_demo(args)
+    _launch_chat(args)
 
 
 if __name__ == '__main__':

@@ -1,2 +1,2 @@
-gradio
-modelscope
+gradio==3.50.2
+minio==7.2.8
