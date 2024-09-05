@@ -9,3 +9,4 @@ MINIO_ACCESS_KEY: str = config('MINIO_ACCESS_KEY', cast=str, default='empty')
 MINIO_SECRET_KEY: str = config('MINIO_SECRET_KEY', cast=str, default='empty')
 
 VLLM_ENDPOINT: str = config('VLLM_ENDPOINT', cast=str, default='http://172.17.0.1:41176')
+LM_DEPLOY_ENDPOINT: str = config('LM_DEPLOY_ENDPOINT', cast=str, default='http://172.17.0.1:41171')

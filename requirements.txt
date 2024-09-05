@@ -1,2 +1,2 @@
-gradio==3.50.2
+gradio==4.42.0
 minio==7.2.8
