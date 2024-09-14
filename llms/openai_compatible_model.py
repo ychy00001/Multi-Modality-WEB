@@ -2,10 +2,13 @@ from llms.base_model import BaseModel
 from typing import List
 import json
 import requests
-
+from utils.time_util import timer_decorator
 
 class OpenAICompatibleModel(BaseModel):
+
+    @timer_decorator
     def call(self, messages: List[str]) -> str:
+
         print("request_url:" + self.url)
         data = {
             "model": self.model_name,

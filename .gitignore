@@ -132,5 +132,9 @@ upload
 *.pth
 *.pt
 
+# project
+script/InternVL/data/*
+!.gitkeep
+
 
 

@@ -46,6 +46,19 @@ DEFAULT_PROMPT_TEMPLATE = """
 
 """
 
+DEFAULT_PROMPT_TEMPLATE_1 = """
+你是一名公路巡检养护校验专家，仅检查图片中的黄色标识框是否存在病害，忽略其他环境，如果黄框在非路面位置，则标识错误，返回无病害。
+任务要求：
+1. 如果存在病害，返回"check"=true，示例：{"check" true, "type": "病害类型""}
+2. 如果不存在病害，返回"check"=false, 示例：{"check": false, "type": "无病害"}
+3. 病害类型type包括：["纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "井盖缺失", "抛洒物", "积水", "坑槽", "龟裂"]
+4. 如无病害，则type="无病害"，示例：{"check": false, "type": "无病害"}
+5. 仅关住路面情况，非路面的地方忽略 
+6. 返回结果必须严格按照JSON格式
+7. 仅返回JSON结果，不需要额外内容
+{user_input}
+"""
+
 
 class Logger:
     def __init__(self, filename):
@@ -209,6 +222,7 @@ def change_top_p(_sld_value, _save_parameter):
     _save_parameter['top_p'] = _sld_value
     return _sld_value, _save_parameter
 
+
 def _launch_chat(args):
     uploaded_file_dir = os.environ.get("GRADIO_TEMP_DIR") or "./upload"
     # 定义支持模型列表
@@ -240,6 +254,8 @@ def _launch_chat(args):
             if with_history:
                 request_chat = copy.deepcopy(model_info['history'])
             for q, a in request_chat:
+                if q is None:
+                    q = ""
                 if isinstance(q, (tuple, list)):
                     print("发送消息图片：" + image_to_url(q[0]))
                     content.append({
@@ -249,7 +265,7 @@ def _launch_chat(args):
                         }
                     })
                 else:
-                    print("User: " + q)
+                    print("User: " + ("无" if q is None else q))
                     content.append({
                         'type': "text",
                         'text': parameter_info["prompt_template"].replace("{user_input}", q)
@@ -265,7 +281,10 @@ def _launch_chat(args):
             # 重构结构
             model_info['lastQuery'] = model_info['query']
             model_info['query'] = []
-            model_info['history'][-1] = (model_info['history'][-1][0], response_text)
+            query_text = model_info['history'][-1][0]
+            if len(str(query_text).strip()) == 0:
+                query_text = None
+            model_info['history'][-1] = (query_text, response_text)
 
             print("Model Response: " + response_text)
             # model_info['history'] = model_info['history'][-10:]
@@ -285,9 +304,11 @@ def _launch_chat(args):
         return model_infos
 
     def add_text(model_infos, input_text):
+        if len(str(input_text).strip()) == 0:
+            input_text = None
         for model_info in model_infos:
-            model_info['query'] = model_info['query'] + [(_parse_text(input_text), None)]
-            model_info['history'] = model_info['history'] + [(_parse_text(input_text), None)]
+            model_info['query'] = model_info['query'] + [(input_text, None)]
+            model_info['history'] = model_info['history'] + [(input_text, None)]
         return model_infos
 
     def add_file(model_infos, file):
@@ -489,11 +510,6 @@ def _launch_chat(args):
 
         with gr.Blocks() as demo:
             with gr.Tab("日志"):
-                # with gr.Row():
-                #     input = gr.Textbox()
-                #     output = gr.Textbox()
-                # btn = gr.Button("Run")
-                # btn.click(test, input, output)
                 logs = gr.Textbox(lines=10)
                 chat_block.load(read_logs, None, logs, every=1)
             with gr.Tab("高级配置"):
