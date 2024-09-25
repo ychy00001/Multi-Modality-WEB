@@ -47,15 +47,22 @@ DEFAULT_PROMPT_TEMPLATE = """
 """
 
 DEFAULT_PROMPT_TEMPLATE_DISEASE = """
-你是一名公路巡检养护校验专家，检查图片是否存在病害。
-任务要求：
+你是一名公路巡检养护校验专家，检查图片中的黄色框是否存在病害，仅关机动车注道路病害，路面基础建筑以及人物、植被请忽略。
+
+规则：
+1. 种植的树木下方的坑非坑槽，为无病害。
+2. 坑槽：可能呈现出圆形、椭圆形或不规则形状，周围的边缘可能会呈现破碎状或裂纹状态，不要忽略小坑的存在。
+3. 道路上的垃圾、塑料袋、烟盒、碎纸、毛线等异常物体均为抛洒物类型。
+4. 坑槽和抛洒物要谨慎区分，坑槽为凹陷状态，抛洒物为凸起状态。
+5. 偏垂直装裂隙为纵向裂隙，偏水平装裂隙为横向裂隙。
+
+要求：
 1. 如果存在病害，返回"check"=true，示例：{"check" true, "type": "病害类型""}
 2. 如果不存在病害，返回"check"=false, 示例：{"check": false, "type": "无病害"}
 3. 病害类型type包括：["纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "井盖缺失", "抛洒物", "积水", "坑槽", "龟裂"]
 4. 如无病害，则type="无病害"，示例：{"check": false, "type": "无病害"}
-5. 返回结果必须严格按照JSON格式
-6. 仅返回JSON结果，不需要额外内容
-{user_input}
+
+结果以JSON格式返回，不需要其他任何内容！
 """
 
 
@@ -295,7 +302,7 @@ def check_img_disease(file_dir, save_dir, match_type=0):
 
             # 请求llm检测
             model_info = {
-                "modelName": "InternVL-26B",
+                "modelName": "InternVL2-8B",
                 "query": [],
                 "history": [],
                 "lastQuery": [],
@@ -327,11 +334,11 @@ def check_img_disease(file_dir, save_dir, match_type=0):
                     f.write(json.dumps({"check": "JSON解析错误", "type": "JSON解析错误"}, ensure_ascii=False))
                 continue
 
-            may_disease_type = disease_type_map[int(file_dir.split("_")[-1])]
-            print(f"当前图片病害类型：{may_disease_type}")
+            # may_disease_type = disease_type_map[int(file_dir.split("_")[-1])]
+            # print(f"当前图片病害类型：{may_disease_type}")
             verify_json = {
                 'check': True,
-                'type': may_disease_type
+                'type': "未知"
             }
 
             output_file = image_file_name.replace(".jpg", "_result_fail.txt")
@@ -364,8 +371,11 @@ if __name__ == '__main__':
     # 无框纯图片
     # IMAGE_DIR = "/Users/rain/Downloads/fp_100_without_box"
     # 指定龟裂病害验证
-    IMAGE_DIR = "/Users/rain/Downloads/road_diseases/h_crack_0"
-    SAVE_DIR = "/Users/rain/Downloads/check_result_h_crack_0"
+    # IMAGE_DIR = "/Users/rain/Downloads/road_diseases/h_crack_0"
+    # SAVE_DIR = "/Users/rain/Downloads/check_result_h_crack_0"
+    # 病害测试集
+    IMAGE_DIR = "/Users/rain/Downloads/origin_images.tar/images_with_box"
+    SAVE_DIR = "/Users/rain/Downloads/origin_images.tar/images_with_box_result"
     # prompt中无输入病害PROMPT
     # check_box(IMAGE_DIR, SAVE_DIR, 1)
     # prompt有输入病害

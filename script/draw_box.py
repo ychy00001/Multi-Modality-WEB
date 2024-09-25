@@ -63,14 +63,18 @@ def draw_box(file_dir, save_dir):
             det_results = []
             for line in lines:
                 data = line.strip().split()
-                disease_type, score, x_center, y_center, w, h = map(float, data)
+                # 有些情况没有score
+                # disease_type, score, x_center, y_center, w, h = map(float, data)
+                disease_type, x_center, y_center, w, h = map(float, data)
                 # 非路面异常不进行处理
+                expansion_size = 20
                 if disease_type in disease_ids:
-                    min_x = int((x_center - w / 2) * width)
-                    min_y = int((y_center - h / 2) * height)
-                    max_x = int((x_center + w / 2) * width)
-                    max_y = int((y_center + h / 2) * height)
-                    det_results.append([min_x, min_y, max_x, max_y, score, disease_type])
+                    min_x = int((x_center - w / 2) * width) - expansion_size if int((x_center - w / 2) * width) - expansion_size > 0 else 0
+                    min_y = int((y_center - h / 2) * height) - expansion_size if int((y_center - h / 2) * height) - expansion_size > 0 else 0
+                    max_x = int((x_center + w / 2) * width) + expansion_size if int((x_center + w / 2) * width) + expansion_size < width else width
+                    max_y = int((y_center + h / 2) * height) + expansion_size if int((y_center + h / 2) * height) + expansion_size < height else height
+                    # det_results.append([min_x, min_y, max_x, max_y, score, disease_type])
+                    det_results.append([min_x, min_y, max_x, max_y, 0, disease_type])
             # 无标记则跳过当前图片
             if len(det_results) == 0:
                 continue
@@ -87,6 +91,6 @@ def draw_box(file_dir, save_dir):
 
 
 if __name__ == '__main__':
-    IMAGE_DIR = "/Users/rain/Downloads/fp_100"
-    SAVE_DIR = "/Users/rain/Downloads/fp_100_box"
+    IMAGE_DIR = "/Users/rain/Downloads/origin_images.tar/images"
+    SAVE_DIR = "/Users/rain/Downloads/origin_images.tar/images_with_box"
     draw_box(IMAGE_DIR, SAVE_DIR)

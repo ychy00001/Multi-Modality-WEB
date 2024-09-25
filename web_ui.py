@@ -31,31 +31,38 @@ DEFAULT_CKPT_PATH = 'qwen/Qwen-VL-Chat'
 REVISION = 'v1.0.4'
 BOX_TAG_PATTERN = r"<box>([\s\S]*?)</box>"
 PUNCTUATION = "！？。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏."
+# DEFAULT_PROMPT_TEMPLATE = """
+# 你是一名公路巡检养护校验专家。根据用户提供的病害描述，判断病害描述是否正确，并返回结果。
+# 任务要求：
+# 1. 如果病害描述正确，返回"check"=true，示例：{"check" true, “type”: "病害类型""}
+# 2. 如果病害描述不正确，返回"check"=false, 示例：{“check”: false, “type”: “病害类型”}
+# 3. 病害类型type包括：["无病害", "纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "井盖缺失", "抛洒物", "积水", "坑槽", "龟裂"]
+# 4. 如无明显病害，则type="无病害"，示例：{"check": "检测结果", “type”: "无病害"}
+# 5. 返回结果必须严格按照JSON格式
+# 6. 仅返回JSON结果，不需要额外内容
+# 7. type为检测病害类型，如果检测病害类型与用户病害类型不一致，请输出检测病害类型
+#
+# {user_input}
+#
+# """
+
 DEFAULT_PROMPT_TEMPLATE = """
-你是一名公路巡检养护校验专家。根据用户提供的病害描述，判断病害描述是否正确，并返回结果。
-任务要求：
-1. 如果病害描述正确，返回"check"=true，示例：{"check" true, “type”: "病害类型""}
-2. 如果病害描述不正确，返回"check"=false, 示例：{“check”: false, “type”: “病害类型”}
-3. 病害类型type包括：["无病害", "纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "井盖缺失", "抛洒物", "积水", "坑槽", "龟裂"]
-4. 如无明显病害，则type="无病害"，示例：{"check": "检测结果", “type”: "无病害"}
-5. 返回结果必须严格按照JSON格式
-6. 仅返回JSON结果，不需要额外内容
-7. type为检测病害类型，如果检测病害类型与用户病害类型不一致，请输出检测病害类型
+你是一名公路巡检养护校验专家，检查图片中的黄色框是否存在病害，仅关机动车注道路病害，路面基础建筑以及人物、植被请忽略。
 
-{user_input}
+规则：
+1. 种植的树木下方的坑非坑槽，为无病害。
+2. 坑槽：可能呈现出圆形、椭圆形或不规则形状，周围的边缘可能会呈现破碎状或裂纹状态，不要忽略小坑的存在。
+3. 道路上的垃圾、塑料袋、烟盒、碎纸、毛线等异常物体均为抛洒物类型。
+4. 坑槽和抛洒物要谨慎区分，坑槽为凹陷状态，抛洒物为凸起状态。
+5. 偏垂直装裂隙为纵向裂隙，偏水平装裂隙为横向裂隙。
 
-"""
-
-DEFAULT_PROMPT_TEMPLATE_1 = """
-你是一名公路巡检养护校验专家，仅检查图片中的黄色标识框是否存在病害，忽略其他环境，如果黄框在非路面位置，则标识错误，返回无病害。
-任务要求：
-1. 如果存在病害，返回"check"=true，示例：{"check" true, "type": "病害类型""}
+要求：
+1. 如果存在病害，返回"check"=true，示例：{"check" true, "type": "病害类型"}
 2. 如果不存在病害，返回"check"=false, 示例：{"check": false, "type": "无病害"}
-3. 病害类型type包括：["纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "井盖缺失", "抛洒物", "积水", "坑槽", "龟裂"]
+3. 病害类型type包括：["纵向裂隙", "横向裂隙", "网状裂隙", "块状裂缝", "井盖破损", "抛洒物", "积水", "坑槽"]
 4. 如无病害，则type="无病害"，示例：{"check": false, "type": "无病害"}
-5. 仅关住路面情况，非路面的地方忽略 
-6. 返回结果必须严格按照JSON格式
-7. 仅返回JSON结果，不需要额外内容
+
+结果以JSON格式返回，不需要其他任何内容！
 {user_input}
 """
 
@@ -228,15 +235,18 @@ def _launch_chat(args):
     # 定义支持模型列表
     qwen_vl_chat_model = QwenVLChatModel(model_name="custom-qwen-vl-chat", url=VLLM_ENDPOINT + "/v1/chat/completions",
                                          max_tokens=1000, temperature=0.8)
-    internvl_8b_model = InternVLModel(model_name="internvl2-8b", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
-                                      max_tokens=1000, temperature=0.8)
-    internvl_26b_model = InternVLModel(model_name="internvl2-26b", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
+    qwen_vl2_instruct_model = QwenVLChatModel(model_name="Qwen2-VL-7B-Instruct", url=VLLM_ENDPOINT + "/v1/chat/completions",
+                                         max_tokens=1000, temperature=0.8)
+    internvl_8b_model = InternVLModel(model_name="InternVL2-8B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
+                                  max_tokens=1000, temperature=0.9)
+    internvl_26b_model = InternVLModel(model_name="InternVL2-26B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
                                        max_tokens=2000, temperature=0.8)
     glm_4v_model = GLM4VModel(model_name="glm-4v-9b", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions", max_tokens=200,
                               temperature=0.9)
     support_models = {
         "Qwen-Vl-Chat": qwen_vl_chat_model,
-        "InternVL-8B": internvl_8b_model,
+        "Qwen-VL2-Instruct": qwen_vl2_instruct_model,
+        "InternVL2-8B": internvl_8b_model,
         "InternVL-26B": internvl_26b_model,
         "glm_4v_model": glm_4v_model,
     }

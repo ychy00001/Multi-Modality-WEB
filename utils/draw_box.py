@@ -77,8 +77,11 @@ def draw_rects(img_obj, results, class_name_list, threshold):
     """
     num_classes = len(class_name_list)
     # use color tables of plt.
-    colors = (plt.cm.brg(np.linspace(0, 1, num_classes))
-              * 255).astype(np.uint8)
+    # colors = (plt.cm.brg(np.linspace(0, 1, num_classes))
+    #           * 255).astype(np.uint8)
+    # print(colors)
+    # 创建一个形状为(num_classes, 3)的数组，并填充黄色的RGB值
+    colors = np.full((num_classes, 4), (255, 255, 0, 0), dtype=np.uint8)
     # Copy one, since Draw will directly propose PIL images.
     copy_img_obj = img_obj.copy()
     drawed = ImageDraw.Draw(copy_img_obj)

@@ -24,6 +24,7 @@ class OpenAICompatibleModel(BaseModel):
         if response.status_code == 200:
             # Parse the JSON response
             result = response.json()
+            print(result)
             # Extract the content from the message
             if "choices" in result and len(result["choices"]) > 0:
                 content = result["choices"][0]["message"]["content"]
