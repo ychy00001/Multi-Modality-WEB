@@ -19,6 +19,7 @@ import random
 import string
 from altair import value
 from httpx import Timeout
+import itertools
 
 from llms import QwenVLChatModel, GLM4VModel, InternVLModel
 from utils import minio_util
@@ -235,12 +236,14 @@ def _launch_chat(args):
     # 定义支持模型列表
     qwen_vl_chat_model = QwenVLChatModel(model_name="custom-qwen-vl-chat", url=VLLM_ENDPOINT + "/v1/chat/completions",
                                          max_tokens=1000, temperature=0.8)
-    qwen_vl2_instruct_model = QwenVLChatModel(model_name="Qwen2-VL-7B-Instruct", url=VLLM_ENDPOINT + "/v1/chat/completions",
-                                         max_tokens=1000, temperature=0.8)
+    qwen_vl2_instruct_model = QwenVLChatModel(model_name="Qwen2-VL-7B-Instruct",
+                                              url=VLLM_ENDPOINT + "/v1/chat/completions",
+                                              max_tokens=1000, temperature=0.8)
     internvl_8b_model = InternVLModel(model_name="InternVL2-8B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
-                                  max_tokens=1000, temperature=0.9)
-    internvl_8b_model_lora = InternVLModel(model_name="InternVL2-8B-Lora", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
                                       max_tokens=1000, temperature=0.9)
+    internvl_8b_model_lora = InternVLModel(model_name="InternVL2-8B-Lora",
+                                           url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
+                                           max_tokens=1000, temperature=0.9)
     internvl_26b_model = InternVLModel(model_name="InternVL2-26B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
                                        max_tokens=2000, temperature=0.8)
     glm_4v_model = GLM4VModel(model_name="glm-4v-9b", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions", max_tokens=200,
@@ -256,7 +259,6 @@ def _launch_chat(args):
 
     def predict(model_infos, parameter_info):
         with_history = False
-        print(model_infos)
         for model_info in model_infos:
             chat_query = model_info['query']
             if len(chat_query) == 0:
@@ -324,11 +326,11 @@ def _launch_chat(args):
             model_info['history'] = model_info['history'] + [(input_text, None)]
         return model_infos
 
-    def add_file(model_infos, file):
+    def add_file(model_infos, file, query):
         for model_info in model_infos:
             model_info['query'] = model_info['query'] + [((file.name,), None)]
             model_info['history'] = model_info['history'] + [((file.name,), None)]
-        return model_infos
+        return model_infos, query
 
     def reset_user_input():
         return gr.update(value="")
@@ -519,7 +521,9 @@ def _launch_chat(args):
         empty_bin.click(reset_state, [model_info_state], [model_info_state], show_progress="full")
         regen_btn.click(regenerate, [model_info_state, parameter], [model_info_state],
                         show_progress="full")
-        addfile_btn.upload(add_file, [model_info_state, addfile_btn], [model_info_state], show_progress="full")
+        addfile_btn.upload(add_file, [model_info_state, addfile_btn, query],
+                           [model_info_state, query],
+                           show_progress="full")
 
         with gr.Blocks() as demo:
             with gr.Tab("日志"):
