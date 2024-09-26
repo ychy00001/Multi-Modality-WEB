@@ -438,7 +438,7 @@ def _launch_chat(args):
         const observer = new MutationObserver(callback);
         // 以上述配置开始观察目标节点
         observer.observe(targetNode, config);
-    },100);
+    },2000);
     </script>
     
     """
