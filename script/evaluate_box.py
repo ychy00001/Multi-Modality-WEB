@@ -276,12 +276,13 @@ def check_box(file_dir, save_dir, match_type=0):
                                                                                  end_time - start_time))
 
 
-def check_img_disease(file_dir, save_dir, match_type=0):
+def check_img_disease(file_dir, save_dir, match_type=0, check_model_name="InternVL2-8B"):
     """
     校验病害裁剪图片是否是病害
     :param file_dir:输入图片目录
     :param save_dir:输出图片目录
     :param match_type:匹配类型， 0: 完全匹配，1: 仅匹配是否有病害
+    :param check_model_name: 使用哪个模型检测
     :return:
     """
     process_count = 0
@@ -302,7 +303,7 @@ def check_img_disease(file_dir, save_dir, match_type=0):
 
             # 请求llm检测
             model_info = {
-                "modelName": "InternVL2-8B",
+                "modelName": check_model_name,
                 "query": [],
                 "history": [],
                 "lastQuery": [],
@@ -381,4 +382,4 @@ if __name__ == '__main__':
     # prompt有输入病害
     # check_box_with_check_file(IMAGE_DIR, SAVE_DIR, 1)
     # 仅判断裁剪图是否有病害，prompt无输入病害
-    check_img_disease(IMAGE_DIR, SAVE_DIR, 1)
+    check_img_disease(IMAGE_DIR, SAVE_DIR, 1, "InternVL2-8B-Lora")

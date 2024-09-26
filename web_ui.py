@@ -239,6 +239,8 @@ def _launch_chat(args):
                                          max_tokens=1000, temperature=0.8)
     internvl_8b_model = InternVLModel(model_name="InternVL2-8B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
                                   max_tokens=1000, temperature=0.9)
+    internvl_8b_model_lora = InternVLModel(model_name="InternVL2-8B-Lora", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
+                                      max_tokens=1000, temperature=0.9)
     internvl_26b_model = InternVLModel(model_name="InternVL2-26B", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions",
                                        max_tokens=2000, temperature=0.8)
     glm_4v_model = GLM4VModel(model_name="glm-4v-9b", url=LM_DEPLOY_ENDPOINT + "/v1/chat/completions", max_tokens=200,
@@ -247,6 +249,7 @@ def _launch_chat(args):
         "Qwen-Vl-Chat": qwen_vl_chat_model,
         "Qwen-VL2-Instruct": qwen_vl2_instruct_model,
         "InternVL2-8B": internvl_8b_model,
+        "InternVL2-8B-Lora": internvl_8b_model_lora,
         "InternVL-26B": internvl_26b_model,
         "glm_4v_model": glm_4v_model,
     }
