@@ -444,8 +444,8 @@ def _launch_chat(args):
     """
 
     with gr.Blocks(head=render_chatbot_js) as chat_block:
-        gr.Markdown("""<center><font size=8>模型效果测试</center>""")
-        gr.Markdown("""<center><font size=3>本WebUI基于Gradio打造，可进行多模态大模型效果测试。</center>""")
+        gr.Markdown("""<center><font size=8>模型测试平台</center>""")
+        gr.Markdown("""<center><font size=3>本WebUI基于Gradio打造，仅供内部多模态大模型效果测试。 @Rain</center>""")
 
         # 定义模型数 默认是一个模型
         model_info_state = gr.State([
