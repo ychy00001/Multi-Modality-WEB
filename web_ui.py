@@ -257,7 +257,7 @@ def _launch_chat(args):
         "glm_4v_model": glm_4v_model,
     }
 
-    def predict(model_infos, parameter_info):
+    def predict(model_infos, parameter_info, query):
         with_history = False
         for model_info in model_infos:
             chat_query = model_info['query']
@@ -304,9 +304,9 @@ def _launch_chat(args):
             print("Model Response: " + response_text)
             # model_info['history'] = model_info['history'][-10:]
             print(model_infos)
-        return model_infos
+        return model_infos, query
 
-    def regenerate(model_infos, parameter_info):
+    def regenerate(model_infos, parameter_info, query):
         has_last_query = False
         for model_info in model_infos:
             if len(model_info['lastQuery']) > 0:
@@ -315,8 +315,8 @@ def _launch_chat(args):
                 model_info['lastQuery'] = []
                 model_info['history'][-1] = (model_info['history'][-1][0], None)
         if has_last_query:
-            return predict(model_infos, parameter_info)
-        return model_infos
+            return predict(model_infos, parameter_info, query)
+        return model_infos, query
 
     def add_text(model_infos, input_text):
         if len(str(input_text).strip()) == 0:
@@ -324,7 +324,7 @@ def _launch_chat(args):
         for model_info in model_infos:
             model_info['query'] = model_info['query'] + [(input_text, None)]
             model_info['history'] = model_info['history'] + [(input_text, None)]
-        return model_infos
+        return model_infos, input_text
 
     def add_file(model_infos, file, query):
         for model_info in model_infos:
@@ -510,16 +510,16 @@ def _launch_chat(args):
             regen_btn = gr.Button("🤔️ Regenerate (重试)")
             empty_bin = gr.Button("🧹 Clear History (清除历史)")
 
-        query.submit(add_text, [model_info_state, query], [model_info_state]).then(
-            predict, [model_info_state, parameter], [model_info_state], show_progress=True
+        query.submit(add_text, [model_info_state, query], [model_info_state, query]).then(
+            predict, [model_info_state, parameter, query], [model_info_state, query], show_progress=True
         )
         query.submit(reset_user_input, [], [query])
-        submit_btn.click(add_text, [model_info_state, query], [model_info_state]).then(
-            predict, [model_info_state, parameter], [model_info_state], show_progress=True
+        submit_btn.click(add_text, [model_info_state, query], [model_info_state, query]).then(
+            predict, [model_info_state, parameter, query], [model_info_state, query], show_progress=True
         )
         submit_btn.click(reset_user_input, [], [query])
         empty_bin.click(reset_state, [model_info_state], [model_info_state], show_progress="full")
-        regen_btn.click(regenerate, [model_info_state, parameter], [model_info_state],
+        regen_btn.click(regenerate, [model_info_state, parameter, query], [model_info_state, query],
                         show_progress="full")
         addfile_btn.upload(add_file, [model_info_state, addfile_btn, query],
                            [model_info_state, query],
